@@ -1,4 +1,4 @@
-set terminal pdfcairo font 'Times,18' rounded dashlength 2
+set terminal pdfcairo font 'Times,20' rounded dashlength 2
 
 # Line style for axes
 set style line 80 lt 1 lc rgb "#808080"
@@ -23,14 +23,11 @@ set grid ytics
 set xtics 100000
 set yrange [0:1.2]
 set key above
-set y2tics nomirror
 
 set ylabel "Utilization" offset 2
-set y2label "Throughput (MB/s)" offset -1
 set xlabel "Time"
 
 plot "__NAME__" using 1:2 with l ls 1 title "xvdf util.",\
-"__NAME__" using 1:($4*100) with l axes x1y2 ls 2 title "xvdf w. thr.",\
-"__NAME__" using 1:($6*100) with l axes x1y2 ls 3 title "xvdf r. thr.",\
-"__NAME__" using 1:8 with l ls 4 title "CPU util.",\
-"__NAME__" using 1:15 with l ls 5 title "GC fraction"
+"__NAME__" using 1:3 with l ls 2 title "xvdb util.",\
+"__NAME__" using 1:8 with l ls 3 title "CPU util.",\
+"__NAME__" using 1:15 with l ls 4 title "GC fraction"

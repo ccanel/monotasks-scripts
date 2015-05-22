@@ -1,4 +1,5 @@
 import json
+import math
 import optparse
 import subprocess
 import sys
@@ -27,7 +28,7 @@ def plot_continuous_monitor(filename):
       "__NAME__", out_filename)
     monotasks_plot_file.write(new_line)
   monotasks_plot_file.close()
- 
+
   start = -1
   at_beginning = True
   for (i, line) in enumerate(open(filename, "r")):
@@ -46,12 +47,17 @@ def plot_continuous_monitor(filename):
     time = json_data["Current Time"]
     if start == -1:
       start = time
+
     disk_utilization = json_data["Disk Utilization"]["Device Name To Utilization"]
     xvdf_total_utilization = disk_utilization[0]["xvdf"]["Disk Utilization"]
     xvdb_total_utilization = disk_utilization[1]["xvdb"]["Disk Utilization"]
+    xvdf_write_throughput = disk_utilization[0]["xvdf"]["Write Throughput"]
+    xvdb_write_throughput = disk_utilization[1]["xvdb"]["Write Throughput"]
+    xvdf_read_throughput = disk_utilization[0]["xvdf"]["Read Throughput"]
+    xvdb_read_throughput = disk_utilization[1]["xvdb"]["Read Throughput"]
     cpu_utilization = json_data["Cpu Utilization"]
     cpu_total = (cpu_utilization["Total User Utilization"] +
-      cpu_utilization["Total System Utilization"])
+    cpu_utilization["Total System Utilization"])
     network_utilization = json_data["Network Utilization"]
     bytes_received = network_utilization["Bytes Received Per Second"]
     running_compute_monotasks = 0
@@ -60,6 +66,12 @@ def plot_continuous_monitor(filename):
     running_macrotasks = 0
     if "Running Macrotasks" in json_data:
       running_macrotasks = json_data["Running Macrotasks"]
+    total_disk_queue_length = 0
+    if "Total Disk Queue Length" in json_data:
+      total_disk_queue_length = json_data["Total Disk Queue Length"]
+    running_disk_monotasks = 0
+    if "Running Disk Monotasks" in json_data:
+      running_disk_monotasks = json_data["Running Disk Monotasks"]
     gc_fraction = 0
     if "Fraction GC Time" in json_data:
       gc_fraction = json_data["Fraction GC Time"]
@@ -80,15 +92,34 @@ def plot_continuous_monitor(filename):
     if "Macrotasks In Compute" in json_data:
       macrotasks_in_compute = json_data["Macrotasks In Compute"]
 
+    if (math.isnan(float(xvdf_write_throughput)) or math.isinf(float(xvdf_write_throughput))):
+      print "xvdf write throughput is NaN or inf"
+      xvdf_write_throughput = 0.0
+    if (math.isnan(float(xvdb_write_throughput)) or math.isinf(float(xvdb_write_throughput))):
+      print "xvdb write throughput is NaN or inf"
+      xvdb_write_throughput = 0.0
+    if (math.isnan(float(xvdf_read_throughput)) or math.isinf(float(xvdf_read_throughput))):
+      print "xvdf read throughput is NaN or inf"
+      xvdf_read_throughput = 0.0
+    if (math.isnan(float(xvdb_read_throughput)) or math.isinf(float(xvdb_read_throughput))):
+      print "xvdb read throughput is NaN or inf"
+      xvdb_read_throughput = 0.0
+
     data = [
       time - start,
       xvdf_total_utilization,
       xvdb_total_utilization,
+      xvdf_write_throughput / 100000000.0,
+      xvdb_write_throughput / 100000000.0,
+      xvdf_read_throughput / 100000000.0,
+      xvdb_read_throughput / 100000000.0,
       cpu_total / 8.0,
       bytes_received / 125000000.,
       bytes_transmitted / 125000000.,
       running_compute_monotasks,
       running_macrotasks,
+      total_disk_queue_length,
+      running_disk_monotasks,
       gc_fraction,
       outstanding_network_bytes / (1024 * 1024),
       macrotasks_in_network,
