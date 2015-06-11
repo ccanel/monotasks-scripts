@@ -16,7 +16,7 @@ import sys
 sys.path.append("../trace-analysis/")
 from job import Job
 
-def get_json(line): 
+def get_json(line):
   # Need to first strip the trailing newline, and then escape newlines (which can appear
   # in the middle of some of the JSON) so that JSON library doesn't barf.
   return json.loads(line.strip("\n").replace("\n", "\\n"))
@@ -120,7 +120,7 @@ class Analyzer:
       self.output_utilizations(agg_results_filename)
 
   def __write_utilization_summary_file(self, utilization_pairs, filename):
-    utilization_pairs.sort() 
+    utilization_pairs.sort()
     current_total_runtime = 0
     percentiles = [0.05, 0.25, 0.5, 0.75, 0.95, 0.99]
     output = []
@@ -168,7 +168,9 @@ class Analyzer:
   def output_utilizations(self, prefix):
     print "Outputting utilizations"
     disk_utilizations = []
-    disk_throughputs = []
+    disk_write_throughputs = []
+    disk_read_throughputs = []
+    total_disk_throughputs = []
     process_user_cpu_utilizations = []
     cpu_utilizations = []
     network_utilizations = []
@@ -188,14 +190,20 @@ class Analyzer:
           cpu_utilizations.append((task.total_cpu_utilization / 8., task.runtime()))
           process_user_cpu_utilizations.append((task.process_user_cpu_utilization / 8., task.runtime()))
           for name, block_device_numbers in task.disk_utilization.iteritems():
-            if name in ["xvdb", "xvdf"]:
+            if name in ["sda1", "xvdf"]:
               utilization = block_device_numbers[0]
               disk_utilizations.append((utilization, task.runtime()))
-              effective_disk_throughput = 0
+              effective_disk_write_throughput = 0
+              effective_disk_read_throughput = 0
+              total_effective_disk_throughput = 0
               if utilization > 0:
-                effective_disk_throughput = ((block_device_numbers[1] + block_device_numbers[2]) /
-                  utilization)
-              disk_throughputs.append((effective_disk_throughput, task.runtime()))
+                effective_disk_write_throughput = block_device_numbers[2] / utilization
+                effective_disk_read_throughput = block_device_numbers[1] / utilization
+                total_effective_disk_throughput = effective_disk_write_throughput + \
+                  effective_disk_read_throughput
+              disk_write_throughputs.append((effective_disk_write_throughput, task.runtime()))
+              disk_read_throughputs.append((effective_disk_read_throughput, task.runtime()))
+              total_disk_throughputs.append((total_effective_disk_throughput, task.runtime()))
           received_utilization = (task.network_bytes_received_ps /
             NETWORK_BANDWIDTH_BPS, task.runtime())
           network_utilizations.append(received_utilization)
@@ -206,12 +214,16 @@ class Analyzer:
           if task.has_fetch:
             network_utilizations_fetch_only.append(received_utilization)
             network_utilizations_fetch_only.append(transmitted_utilization)
-    
+
     self.write_summary_file(task_runtimes, "%s_%s" % (prefix, "task_runtimes"))
     self.__write_utilization_summary_file(
       disk_utilizations, "%s_%s" % (prefix, "disk_utilization"))
     self.__write_utilization_summary_file(
-      disk_throughputs, "%s_%s" % (prefix, "disk_throughput"))
+      disk_write_throughputs, "%s_%s" % (prefix, "disk_write_throughput"))
+    self.__write_utilization_summary_file(
+      disk_read_throughputs, "%s_%s" % (prefix, "disk_read_throughput"))
+    self.__write_utilization_summary_file(
+      total_disk_throughputs, "%s_%s" % (prefix, "total_disk_throughput"))
     self.__write_utilization_summary_file(
       network_utilizations, "%s_%s" % (prefix, "network_utilization"))
     self.__write_utilization_summary_file(
@@ -277,7 +289,7 @@ class Analyzer:
     print "\nFraction of time waiting on compute: %s" % fraction_time_waiting_on_compute
     fraction_time_computing = job.fraction_time_computing()
     print "\nFraction of time computing: %s" % fraction_time_computing
-    
+
     replace_all_tasks_with_average_speedup = job.replace_all_tasks_with_average_speedup(filename)
     no_stragglers_replace_with_median_speedup = job.replace_all_tasks_with_median_speedup()
     no_stragglers_replace_95_with_median_speedup = \
@@ -322,7 +334,7 @@ class Analyzer:
         # 15 16
         no_shuffle_write_disk_speedup, no_shuffle_read_disk_speedup,
         # 17 18 19
-        job.original_runtime(), simulated_original_runtime, no_disk_runtime, 
+        job.original_runtime(), simulated_original_runtime, no_disk_runtime,
         no_shuffle_read_runtime,
         # 21 22 23
         job.no_gc_speedup()[0], no_network_speedup, no_network_runtime]
@@ -342,7 +354,7 @@ def main(argv):
   if len(args) != 1:
     parser.print_help()
     sys.exit(1)
- 
+
   if opts.debug:
     logging.basicConfig(level=logging.DEBUG)
   else:
