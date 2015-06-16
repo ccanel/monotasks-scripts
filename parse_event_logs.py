@@ -191,19 +191,18 @@ class Analyzer:
           process_user_cpu_utilizations.append((task.process_user_cpu_utilization / 8., task.runtime()))
           for name, block_device_numbers in task.disk_utilization.iteritems():
             if name in ["sda1", "xvdf"]:
-              utilization = block_device_numbers[0]
-              disk_utilizations.append((utilization, task.runtime()))
-              effective_disk_write_throughput = 0
-              effective_disk_read_throughput = 0
-              total_effective_disk_throughput = 0
-              if utilization > 0:
-                effective_disk_write_throughput = block_device_numbers[2] / utilization
-                effective_disk_read_throughput = block_device_numbers[1] / utilization
-                total_effective_disk_throughput = effective_disk_write_throughput + \
-                  effective_disk_read_throughput
-              disk_write_throughputs.append((effective_disk_write_throughput, task.runtime()))
-              disk_read_throughputs.append((effective_disk_read_throughput, task.runtime()))
-              total_disk_throughputs.append((total_effective_disk_throughput, task.runtime()))
+              disk_utilization = block_device_numbers[0]
+              disk_utilizations.append((disk_utilization, task.runtime()))
+              disk_write_throughput = 0
+              disk_read_throughput = 0
+              total_disk_throughput = 0
+              if disk_utilization > 0:
+                disk_write_throughput = block_device_numbers[2]
+                disk_read_throughput = block_device_numbers[1]
+                total_disk_throughput = disk_write_throughput + disk_read_throughput
+              disk_write_throughputs.append((disk_write_throughput, task.runtime()))
+              disk_read_throughputs.append((disk_read_throughput, task.runtime()))
+              total_disk_throughputs.append((total_disk_throughput, task.runtime()))
           received_utilization = (task.network_bytes_received_ps /
             NETWORK_BANDWIDTH_BPS, task.runtime())
           network_utilizations.append(received_utilization)
