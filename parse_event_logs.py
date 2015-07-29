@@ -42,6 +42,8 @@ class Analyzer:
       print "Parsing file %s as JobLogger output" % filename
     f.seek(0)
 
+    self.job_start_end_times = dict()
+
     for line in f:
       if self.is_json:
         try:
@@ -51,13 +53,26 @@ class Analyzer:
           continue
         event_type = json_data["Event"]
         if event_type == "SparkListenerJobStart":
-          stage_ids = json_data["Stage IDs"]
           job_id = json_data["Job ID"]
+
+          job_start_time = json_data["Submission Time"]
+          job_end_time = self.job_start_end_times[job_id][1] if (job_id in self.job_start_end_times) else None
+          self.job_start_end_times[job_id] = (job_start_time, job_end_time)
+
           # Avoid using "Stage Infos" here, which was added in 1.2.0.
+          stage_ids = json_data["Stage IDs"]
           for stage_id in stage_ids:
             if stage_id not in self.jobs_for_stage:
               self.jobs_for_stage[stage_id] = []
             self.jobs_for_stage[stage_id].append(job_id)
+
+        elif event_type == "SparkListenerJobEnd":
+          job_id = json_data["Job ID"]
+
+          job_start_time = self.job_start_end_times[job_id][0] if (job_id in self.job_start_end_times) else None
+          job_end_time = json_data["Completion Time"]
+          self.job_start_end_times[job_id] = (job_start_time, job_end_time)
+
         elif event_type == "SparkListenerTaskEnd":
           stage_id = json_data["Stage ID"]
           # Add the event to all of the jobs that depend on the stage.
@@ -71,6 +86,14 @@ class Analyzer:
 
     print "Filtering jobs based on passed in filter function"
     self.jobs = job_filterer(self.jobs)
+
+    job_ids = self.jobs.keys()
+    temp = dict()
+    for (job_id, times) in self.job_start_end_times.iteritems():
+      if (job_id in self.jobs):
+        temp[job_id] = times
+    self.job_start_end_times = temp
+
     print "Finished reading input data:"
     for job_id, job in self.jobs.iteritems():
       job.initialize_job()
@@ -177,10 +200,14 @@ class Analyzer:
     network_utilizations_recv_only = []
     network_utilizations_fetch_only = []
     task_runtimes = []
+    jcts = []
     # Divide by 8 to convert to bytes!
     NETWORK_BANDWIDTH_BPS = 1.0e9 / 8
 
     for job_id, job in self.jobs.iteritems():
+      (job_start_time, job_end_time) = self.job_start_end_times[job_id]
+      jcts.append(job_end_time - job_start_time)
+
       print "Adding data for job %s" % job_id
       for stage_id, stage in job.stages.iteritems():
         stage_runtime = (max([t.finish_time for t in stage.tasks]) -
@@ -213,6 +240,16 @@ class Analyzer:
           if task.has_fetch:
             network_utilizations_fetch_only.append(received_utilization)
             network_utilizations_fetch_only.append(transmitted_utilization)
+
+    job_ids = self.jobs.keys()
+    first_job_id = min(job_ids)
+    last_job_id = max(job_ids)
+    total_jct = self.job_start_end_times[last_job_id][1] - self.job_start_end_times[first_job_id][0]
+    total_jct_file = open("%s_%s" % (prefix, "total_jct"), 'w')
+    total_jct_file.write(str(total_jct))
+    total_jct_file.close()
+
+    self.__write_utilization_summary_file(map(lambda x: (x, x), jcts), "%s_%s" % (prefix, "jcts"))
 
     self.write_summary_file(task_runtimes, "%s_%s" % (prefix, "task_runtimes"))
     self.__write_utilization_summary_file(

@@ -24,7 +24,7 @@ set border 3 back linestyle 80 # Remove border on top and right.  These
 
     # Also, put it in grey; no need for so much emphasis on a border.
 
-set xtics nomirror ("1" 1, "2" 2, "4" 3, "8" 4, "16" 5, "24" 6)
+set xtics nomirror ("1" 1, "2" 2, "4" 3, "8" 4, "16" 5, "32" 6, "Monotasks" 7)
 set ytics nomirror
 
 set boxwidth 0.2
@@ -33,15 +33,13 @@ set style fill pattern 1 border -1
 
 set grid ytics
 
-set ylabel "Total Disk Throughput (MB/s)" offset 1
+set ylabel "Disk Utilization" offset 1
 set xlabel "Number of Concurrent Tasks"
 
-set xrange [0:7]
-set yrange [0:200]
+set xrange [0:8]
+set yrange [0:1.5]
 
-set key left vertical
+set key right vertical
 
-plot "__MONOTASKS_NAME__" using ($2-0.15):($4):($3):($7):($6) with candlesticks fs pattern 0 lc rgb "white" title "Monotasks" whiskerbars,\
-"__MONOTASKS_NAME__" using ($2-0.15):($5):($5):($5):($5) with candlesticks notitle,\
-"__SPARK_NAME__" using ($2+0.15):($4):($3):($7):($6) with candlesticks fs pattern 2 lc rgb "#377EB8" title "Spark" whiskerbars,\
-"__SPARK_NAME__" using ($2+0.15):($5):($5):($5):($5) with candlesticks notitle
+plot "__UTILIZATIONS_DATA_FILENAME__" using ($2):($4):($3):($7):($6) with candlesticks fs pattern 0 lc rgb "white" title "Write" whiskerbars,\
+"__UTILIZATIONS_DATA_FILENAME__" using ($2):($5):($5):($5):($5) with candlesticks notitle
