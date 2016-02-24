@@ -107,7 +107,7 @@ class Stage:
     total_output_size = sum([t.shuffle_mb_written for t in self.tasks])
     return total_output_size
 
-  def ideal_time(self, cores_per_machine, disks_per_machine):
+  def ideal_time(self, cores_per_machine, disks_per_machine, output_file=None):
     """ Returns the ideal completion time, if all of the monotasks had been scheduled perfectly. """
     num_machines = len(set([t.executor_id for t in self.tasks]))
     total_compute_millis = sum([t.compute_monotask_millis for t in self.tasks])
@@ -115,16 +115,19 @@ class Stage:
 
     total_disk_millis = sum([t.disk_monotask_millis for t in self.tasks])
     ideal_disk_millis = 0
-    if total_disk_millis > 0:
+    if (total_disk_millis > 0) and (disks_per_machine > 0):
       ideal_disk_millis = float(total_disk_millis) / (num_machines * disks_per_machine)
 
     ideal_network_millis = self.__get_ideal_network_time(num_machines)
 
     ideal_millis = max(ideal_compute_millis, ideal_disk_millis, ideal_network_millis)
 
-    print (("Ideal times for stage: CPU: %sms, Disk: %sms, Network: %sms (so %sms for whole " +
+    message = (("Ideal times for stage: CPU: %sms, Disk: %sms, Network: %sms (so %sms for whole " +
       "stage); actual time was %s") %
       (ideal_compute_millis, ideal_disk_millis, ideal_network_millis, ideal_millis, self.runtime()))
+    print message
+    if output_file is not None:
+      output_file.write("%s\n" % message)
     return ideal_millis
 
   def get_network_mb(self):
@@ -136,12 +139,12 @@ class Stage:
     # it based on an ideal link bandwidth.
     total_network_bytes = self.get_network_mb()
     # Assume a 1gb network.
-    network_bandwith_mb_per_second = 125.
+    network_bandwith_mb_per_second = 61.76  # ideal: 125.
     ideal_network_seconds = total_network_bytes / (num_machines * network_bandwith_mb_per_second)
     ideal_network_millis = ideal_network_seconds * 1000.
     return ideal_network_millis
 
-  def ideal_time_utilization(self, cores_per_machine):
+  def ideal_time_utilization(self, cores_per_machine, output_file=None):
     """ Returns the stage's completion time if all executors had been fully utilized."""
     executor_id_to_tasks = self.get_executor_id_to_tasks()
     total_jiffies = 0
@@ -155,8 +158,11 @@ class Stage:
     num_executors = len(executor_id_to_tasks)
     ideal_cpu_millis = float(total_millis) / (num_executors * cores_per_machine)
     ideal_network_millis = self.__get_ideal_network_time(num_executors)
-    print ("Ideal times for stage based on utilization: CPU: %sms, Network: %sms" %
+    message = ("Ideal times for stage based on utilization: CPU: %sms, Network: %sms" %
       (ideal_cpu_millis, ideal_network_millis))
+    print message
+    if output_file is not None:
+      output_file.write("%s\n" % message)
     return max(ideal_cpu_millis, ideal_network_millis)
 
   def add_event(self, data):
