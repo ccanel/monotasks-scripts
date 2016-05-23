@@ -245,6 +245,26 @@ class Analyzer:
         output.write("Job {} total stage runtime: {:.2f} s\n\n".format(
           job_id, total_stage_runtime_s))
 
+
+  def output_stage_total_hdfs_ser_comp_time(self, filename):
+    """
+    Writes a single file with the total time spent serializing, compressing, deserializing, and
+    decompressing HDFS data during each stage.
+    """
+    with open("{}_{}".format(filename, "stage_total_ser_comp_time"), "w") as output:
+      for job_id, job in sorted(self.jobs.iteritems()):
+        for stage_id, stage in sorted(job.stages.iteritems()):
+          executor_to_resource_metrics = stage.get_executor_id_to_resource_metrics()
+          total_hdfs_ser_comp_millis = 0L
+          for executor_id, resource_metrics in sorted(executor_to_resource_metrics.iteritems()):
+            cpu_metrics = resource_metrics.cpu_metrics
+            total_hdfs_ser_comp_millis += (cpu_metrics.hdfs_ser_comp_millis +
+              cpu_metrics.hdfs_deser_decomp_millis)
+          output.write("Job {}, Stage {} total HDFS ser/comp/deser/decomp time: {:.2f} s\n".format(
+            job_id, stage_id, float(total_hdfs_ser_comp_millis) / 1000))
+        output.write("\n")
+
+
 def main(argv):
   parser = OptionParser(usage="parse_logs.py [options] <log filename>")
   parser.add_option(
@@ -272,6 +292,7 @@ def main(argv):
   analyzer.output_job_resource_metrics(filename)
   analyzer.output_stage_resource_metrics(filename)
   analyzer.output_ideal_time_metrics(filename)
+  analyzer.output_stage_total_hdfs_ser_comp_time(filename)
 
 if __name__ == "__main__":
   main(sys.argv[1:])
