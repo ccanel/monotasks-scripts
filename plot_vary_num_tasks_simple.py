@@ -25,6 +25,7 @@ import numpy
 import os
 from os import path
 import re
+import subprocess
 
 import parse_event_logs
 
@@ -34,7 +35,8 @@ def main():
   num_warmup_trials = args.num_warmup_trials
   monotasks_num_tasks_to_jcts = __get_num_tasks_to_jcts(args.monotasks_dir, num_warmup_trials)
   spark_num_tasks_to_jcts = __get_num_tasks_to_jcts(args.spark_dir, num_warmup_trials)
-  __plot_num_tasks_vs_jct(monotasks_num_tasks_to_jcts, spark_num_tasks_to_jcts, args.output_dir)
+  #__plot_num_tasks_vs_jct(monotasks_num_tasks_to_jcts, spark_num_tasks_to_jcts, args.output_dir)
+  __plot_num_tasks_vs_jct_gnuplot(monotasks_num_tasks_to_jcts, spark_num_tasks_to_jcts, args.gnuplot_base, args.output_dir)
 
 
 def __parse_args():
@@ -62,6 +64,11 @@ def __parse_args():
       "discarded."),
     required=False,
     type=int)
+  parser.add_argument(
+    "-g",
+    "--gnuplot-base",
+    help="The gnuplot .gp file to use as a template.",
+    required=True)
   return parser.parse_args()
 
 
@@ -124,6 +131,59 @@ def __plot_num_tasks_vs_jct(monotasks_num_tasks_to_jcts, spark_num_tasks_to_jcts
   with backend_pdf.PdfPages(path.join(output_dir, "num_tasks_vs_jct.pdf")) as pdf:
     pdf.savefig()
   pyplot.close()
+
+
+def __plot_num_tasks_vs_jct_gnuplot(monotasks_num_tasks_to_jcts, spark_num_tasks_to_jcts, gnuplot_base_filepath, output_dir):
+  plot_filepath = path.join(output_dir, "num_tasks_vs_jct_gnuplot.gp")
+  spark_data_filepath = path.join(output_dir, "spark_results.data")
+  monotasks_data_filepath = path.join(output_dir, "monotasks_results.data")
+  graph_filepath = path.join(output_dir, "num_tasks_vs_jct_gnuplot.pdf")
+
+  print "monotasks: {}".format(monotasks_num_tasks_to_jcts)
+  print "spark: {}".format(spark_num_tasks_to_jcts)
+
+  print sorted(monotasks_num_tasks_to_jcts.keys())
+
+  base_i = 0
+
+  sorted_num_tasks_values = sorted(monotasks_num_tasks_to_jcts.keys())
+  xtics = []
+  i = base_i
+  for num_tasks_value in sorted_num_tasks_values:
+    xtics.append("\"{}\" {}".format(num_tasks_value, i))
+    i += 1
+  xtics = "({})".format(", ".join(xtics))
+
+  with open(plot_filepath, "w") as plot_file:
+    for line in open(gnuplot_base_filepath, "r"):
+      new_line = line.replace("__OUTPUT_FILEPATH__", graph_filepath)
+      new_line = new_line.replace("__XTICS__", xtics)
+      new_line = new_line.replace("__SPARK_DATA_FILEPATH__", spark_data_filepath)
+      new_line = new_line.replace("__MONOTASKS_DATA_FILEPATH__", monotasks_data_filepath)
+      plot_file.write(new_line)
+
+  with open(monotasks_data_filepath, "w") as monotasks_data_file, \
+       open(spark_data_filepath, "w") as spark_data_file:
+    i = base_i
+    for num_tasks_value in sorted_num_tasks_values:
+      spark_jcts = spark_num_tasks_to_jcts[num_tasks_value]
+      spark_min = min(spark_jcts)
+      spark_median = numpy.median(spark_jcts)
+      spark_max = max(spark_jcts)
+      print "spark: {}: {}".format(num_tasks_value, sorted(spark_jcts))
+
+      monotasks_jcts = monotasks_num_tasks_to_jcts[num_tasks_value]
+      monotasks_min = min(monotasks_jcts)
+      monotasks_median = numpy.median(monotasks_jcts)
+      monotasks_max = max(monotasks_jcts)
+      print "monotasks: {}: {}".format(num_tasks_value, sorted(monotasks_jcts))
+
+      spark_data_file.write("{} {} {} {}\n".format(i, spark_median, spark_min, spark_max))
+      monotasks_data_file.write("{} {} {} {}\n".format(i, monotasks_median, monotasks_min, monotasks_max))
+      i += 1
+
+  subprocess.check_call("gnuplot {}".format(plot_filepath), shell=True)
+  print "plot_filepath: {}".format(plot_filepath)
 
 
 def __get_max_jct(num_tasks_to_jcts):
